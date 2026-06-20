@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: MIT
+
+# Build outputs
+build/
+builddir/
+meson-logs/
+meson-private/
+*.o
+*.a
+*.so
+*.dll
+*.exe
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Runtime and generated files
+*.log
+*.pcap
+*.pcapng
+*.csv
+*.out
+core
+core.*
+
+# Local environment files
+.env
+.env.*
