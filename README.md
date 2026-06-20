@@ -1,20 +1,22 @@
 # dpdk-qos-scheduler
 
-`dpdk-qos-scheduler` 是一个基于 DPDK 的用户态高速包处理与 QoS 流量调度 Demo。项目使用 C++17 编写，重点演示 DPDK EAL 初始化、mempool 创建、端口 RX/TX 队列配置、burst 收发包、Ethernet/IPv4/TCP/UDP 解析、五元组分类、多级队列和 SP/WRR/DRR 三种调度策略。
+`dpdk-qos-scheduler` is a C++17 DPDK-based user-space packet processing and QoS scheduling demo. It demonstrates DPDK EAL initialization, mbuf pool creation, port and RX/TX queue setup, burst packet I/O, Ethernet/IPv4/TCP/UDP parsing, five-tuple classification, multi-priority queues, and three QoS scheduling policies: SP, WRR, and DRR.
 
-本项目是个人学习和技术演示项目，不是生产级交换机、路由器或完整网关。
+This project is intended for learning and technical demonstration. It is not a production-grade switch, router, or gateway.
 
-## 与 5G-TSN QoS 调度理解的关系
+## Relation to 5G-TSN QoS Scheduling
 
-5G-TSN 项目关注时间敏感业务在 5G/TSN 融合场景下的 QoS 映射和调度保障。本项目把这种“多业务优先级 + 队列 + 调度算法 + 指标统计”的思想落到用户态包处理 Demo 中：
+The 5G-TSN project focuses on QoS mapping and scheduling guarantees for time-sensitive traffic in integrated 5G/TSN scenarios. This project turns a similar idea into a runnable user-space packet processing demo: multiple traffic classes compete for limited forwarding opportunities and are handled by different QoS schedulers.
 
-- UDP 目的端口 `5001` 映射为 `HIGH`，模拟 network control。
-- UDP 目的端口 `5002` 映射为 `MEDIUM`，模拟 video。
-- 其他 IPv4/TCP/UDP 或非 IPv4 报文映射为 `LOW`，模拟 best effort。
+Demo classification rules:
 
-这些规则只是 Demo 规则，真实项目可以替换为 ACL、DSCP、VLAN PCP、五元组表、隧道字段或控制面下发的策略表。
+- UDP destination port `5001` -> `HIGH`, simulating network control traffic.
+- UDP destination port `5002` -> `MEDIUM`, simulating video traffic.
+- Other IPv4/TCP/UDP or non-IPv4 packets -> `LOW`, simulating best-effort traffic.
 
-## 架构
+These are demo rules only. In a real system, they can be replaced by ACL rules, DSCP, VLAN PCP, five-tuple tables, tunnel metadata, or policies delivered by a control plane.
+
+## Architecture
 
 ```text
 NIC RX
@@ -28,26 +30,26 @@ NIC RX
   -> Stats(PPS, throughput, drops, queue length)
 ```
 
-## 环境依赖
+## Requirements
 
 - Linux
-- DPDK，已安装并提供 `libdpdk.pc`
+- DPDK installed with `libdpdk.pc` available
 - Meson + Ninja
-- C++17 编译器，例如 `g++` 或 `clang++`
+- A C++17 compiler, such as `g++` or `clang++`
 - `pkg-config`
 
-本项目依赖 DPDK，DPDK 本身遵循其官方许可证；本仓库只包含个人学习项目代码，许可证为 MIT。
+This project depends on DPDK. DPDK follows its official license. This repository only contains personal learning/demo code and is licensed under MIT.
 
-## DPDK 安装说明
+## DPDK Installation Notes
 
-不同发行版安装方式不同，核心目标是让系统能找到 `libdpdk.pc`：
+Installation methods vary by distribution. The key requirement is that `pkg-config` can find `libdpdk`:
 
 ```bash
 pkg-config --modversion libdpdk
 pkg-config --cflags --libs libdpdk
 ```
 
-如果你从源码安装 DPDK，通常需要在 DPDK 源码目录中执行类似流程：
+If you install DPDK from source, a typical workflow is:
 
 ```bash
 meson setup build
@@ -56,58 +58,56 @@ sudo ninja -C build install
 sudo ldconfig
 ```
 
-如果 `pkg-config` 找不到 DPDK，可设置：
+If `pkg-config` cannot find DPDK, set `PKG_CONFIG_PATH` according to your installation path, for example:
 
 ```bash
 export PKG_CONFIG_PATH=/usr/local/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH
 ```
 
-具体路径以你的 DPDK 安装位置为准。
-
 ## HugePages
 
-DPDK 使用 HugePages 减少 TLB miss，提高用户态数据包处理性能。示例脚本：
+DPDK uses HugePages to reduce TLB misses and improve user-space packet processing performance. Example:
 
 ```bash
 sudo ./scripts/setup_hugepages.sh 1024
 ```
 
-也可以手动查看：
+You can also check HugePage status manually:
 
 ```bash
 grep Huge /proc/meminfo
 ```
 
-## 网卡绑定
+## NIC Binding
 
-真实收发包通常需要把网卡绑定到 DPDK 支持的驱动，例如 `vfio-pci`。先确认网卡 PCI 地址，再执行：
+For real packet I/O, a NIC usually needs to be bound to a DPDK-compatible driver such as `vfio-pci`. Confirm the PCI address first, then run:
 
 ```bash
 sudo ./scripts/bind_nic.sh 0000:01:00.0
 ```
 
-脚本只是教学示例，绑定网卡会影响系统网络连接，请确认不要绑定正在使用的管理网卡。
+The script is only a teaching example. Binding a NIC may disconnect the host network. Do not bind the management NIC you are currently using.
 
-## 构建
+## Build
 
 ```bash
 meson setup build
 ninja -C build
 ```
 
-## dry-run 运行
+## Dry Run
 
-`dry-run` 不依赖真实 DPDK 网卡收发，用模拟报文测试解析、分类和调度逻辑，适合无网卡环境演示：
+`dry-run` mode does not require a real DPDK NIC. It creates simulated packets and tests parsing, classification, queueing, and scheduling logic:
 
 ```bash
 ./build/dpdk-qos-scheduler --dry-run
 ```
 
-它会分别打印 SP、WRR、DRR 的入队分类和调度输出顺序。
+It prints enqueue results and scheduling orders for SP, WRR, and DRR.
 
-## 真实 DPDK 运行
+## Real DPDK Run
 
-真实运行时需要 EAL 参数和 app 参数。DPDK EAL 参数放在 `--` 前，应用参数放在 `--` 后：
+When running with a real DPDK port, DPDK EAL options should be placed before `--`, and application options should be placed after `--`:
 
 ```bash
 sudo ./build/dpdk-qos-scheduler -l 0-1 -n 4 -- \
@@ -118,7 +118,7 @@ sudo ./build/dpdk-qos-scheduler -l 0-1 -n 4 -- \
   --stats-interval 1
 ```
 
-可选调度器：
+Available schedulers:
 
 ```bash
 --scheduler sp
@@ -126,51 +126,55 @@ sudo ./build/dpdk-qos-scheduler -l 0-1 -n 4 -- \
 --scheduler drr
 ```
 
-## 三种调度算法
+## Scheduling Algorithms
 
-### SP，Strict Priority
+### SP: Strict Priority
 
-严格优先级调度。只要 `HIGH` 非空就发 `HIGH`，否则发 `MEDIUM`，最后才发 `LOW`。
+Strict Priority always serves the highest non-empty priority queue first:
 
-优点是高优先级业务时延低；缺点是高优先级持续满载时，低优先级可能饥饿。
+1. Serve `HIGH` if it is not empty.
+2. Otherwise serve `MEDIUM`.
+3. Otherwise serve `LOW`.
 
-### WRR，Weighted Round Robin
+It provides low latency for high-priority traffic, but low-priority traffic may starve under sustained high-priority load.
 
-加权轮询。Demo 权重为：
+### WRR: Weighted Round Robin
+
+Weighted Round Robin serves queues according to configured weights. This demo uses:
 
 ```text
 HIGH : MEDIUM : LOW = 6 : 3 : 1
 ```
 
-优点是比 SP 更公平；缺点是它按“包数量”轮转，包长变化明显时，字节级公平性不足。
+WRR is fairer than SP, but it usually schedules by packet count. If packet sizes differ significantly, packet-level fairness may not equal byte-level fairness.
 
-### DRR，Deficit Round Robin
+### DRR: Deficit Round Robin
 
-赤字轮询。每个队列有 `quantum` 和 `deficit counter`，调度时按包长扣减 deficit。Demo 中 `HIGH` quantum 最大，`MEDIUM` 次之，`LOW` 最小。
+Deficit Round Robin maintains a quantum and deficit counter for each queue. It schedules packets based on actual packet length. In this demo, `HIGH` has the largest quantum, `MEDIUM` has a smaller one, and `LOW` has the smallest one.
 
-优点是比 WRR 更适合变长包，因为它按字节长度近似公平；同时还能通过 quantum 保留业务优先级。
+DRR is more suitable for variable-size packets than WRR because it approximates byte-level fairness while still preserving priority through different quantum values.
 
-## 统计指标
+## Statistics
 
-程序周期打印：
+The program periodically prints:
 
 - RX packets
 - TX packets
 - dropped packets
 - PPS
-- throughput Mbps
-- HIGH/MEDIUM/LOW 队列长度
-- HIGH/MEDIUM/LOW 发送数量
-- 当前调度算法名称
+- throughput in Mbps
+- queue length for HIGH / MEDIUM / LOW
+- sent packet count for HIGH / MEDIUM / LOW
+- scheduler name
 
-队列满时，报文会被丢弃并增加 drop counter。
+If a queue is full, the packet is dropped and the drop counter is increased.
 
-## 项目边界
+## Project Boundary
 
-本项目是个人学习和技术演示 Demo：
+This is a learning and technical demonstration demo:
 
-- 不实现完整路由、交换、ARP、ACL 或复杂控制面。
-- 不保证生产级性能或可靠性。
-- 不复制 DPDK 官方 examples 源码。
-- DPDK 作为系统依赖，通过 `pkg-config` 链接。
-- 核心价值是帮助理解 DPDK 包处理路径和 QoS 调度算法。
+- It does not implement full routing, switching, ARP, ACL, or a complex control plane.
+- It does not guarantee production-grade performance or reliability.
+- It does not copy DPDK official example source code.
+- DPDK is used as a system dependency and linked through `pkg-config`.
+- The main goal is to understand the DPDK packet processing path and QoS scheduling algorithms.
